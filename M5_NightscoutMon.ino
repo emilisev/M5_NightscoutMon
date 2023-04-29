@@ -32,7 +32,7 @@
 // Only following boards are supported in this code:
 // M5Stack Arduino / M5Stack-Core-ESP32
 // M5Stack Arduino / M5Stack-Core2
-
+#include "soc/rtc_io_reg.h"
 #include <Arduino.h>
 #ifdef ARDUINO_M5STACK_Core2
   #include <M5Core2.h>
@@ -215,12 +215,12 @@ struct NSinfo ns;
 void setPageIconPos(int page) {
   switch(page) {
     case 0:
-      icon_xpos[0] = 144;
-      icon_xpos[1] = 144+18;
-      icon_xpos[2] = 144+2*18;
+      icon_xpos[0] = 300;
+      icon_xpos[1] = icon_xpos[0];
+      icon_xpos[2] = icon_xpos[1];
       icon_ypos[0] = 0;
-      icon_ypos[1] = 0;
-      icon_ypos[2] = 0;
+      icon_ypos[1] = icon_ypos[0]+18;
+      icon_ypos[2] = icon_ypos[1]+18;
       break;
     case 1:
       icon_xpos[0] = 126;
@@ -906,7 +906,7 @@ void drawMiniGraph(struct NSinfo *ns){
   M5.Lcd.drawLine(231, 200-(9-3)*10+3, 319, 200-(9-3)*10+3, TFT_LIGHTGREY);
   Serial.print("Last 10 values: ");
   for(i=9; i>=0; i--) {
-    sgvColor = TFT_GREEN;
+    sgvColor = TFT_DARKGREEN;
     glk = *(ns->last10sgv+9-i);
     if(glk>12) {
       glk = 12;
@@ -1709,6 +1709,63 @@ void drawSegment(int x, int y, int r1, int r2, float a, int col)
   M5.Lcd.fillTriangle(x1,y1,x2,y2,x3,y3,col);
 }
 
+void show_current_time() {
+  M5.Lcd.setFreeFont(FSSB24);
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  char dateStr[16];
+  char timeStr[16];
+  char datetimeStr[32];
+  struct tm timeinfo;
+  if(cfg.show_current_time) {
+    if(getLocalTime(&timeinfo)) {
+      // sprintf(datetimeStr, "%02d:%02d:%02d  %d.%d.  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, timeinfo.tm_mday, timeinfo.tm_mon+1);  
+      switch(cfg.time_format) {
+        case 1:
+          // sprintf(datetimeStr, "%02d:%02d  %d/%d  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mon+1, timeinfo.tm_mday);
+          strftime(timeStr, 15, "%I:%M%p", &timeinfo);
+          timeStr[strlen(timeStr)-1] = 0;
+          strcat(timeStr, " ");
+          break;
+        default:
+          // sprintf(datetimeStr, "%02d:%02d  %d.%d.  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mday, timeinfo.tm_mon+1);
+          strftime(timeStr, 15, "%H:%M ", &timeinfo);
+      }
+      switch(cfg.date_format) {
+        case 1:
+          // sprintf(datetimeStr, "%02d:%02d  %d/%d  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mon+1, timeinfo.tm_mday);
+          // timeinfo.tm_mday=25;
+          strftime(dateStr, 15, "%m/%d  ", &timeinfo);
+          break;
+        default:
+          // sprintf(datetimeStr, "%02d:%02d  %d.%d.  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mday, timeinfo.tm_mon+1);
+          // timeinfo.tm_mday=25;
+          strftime(dateStr, 15, "%d.%m.  ", &timeinfo);
+      }
+      strcpy(datetimeStr, timeStr);
+      //strcat(datetimeStr, dateStr);
+      } else {
+        // strcpy(datetimeStr, "??:??:??");
+        strcpy(datetimeStr, "??:??");
+        lastMin = 61;
+      }
+    } else {
+      // sprintf(datetimeStr, "%02d:%02d:%02d  %02d.%02d.  ", sensTm.tm_hour, sensTm.tm_min, sensTm.tm_sec, sensTm.tm_mday, sensTm.tm_mon+1);
+        switch(cfg.date_format) {
+          case 1:
+            sprintf(datetimeStr, "%02d:%02d  %02d/%02d.  ", ns.sensTm.tm_hour, ns.sensTm.tm_min, ns.sensTm.tm_mon+1, ns.sensTm.tm_mday);
+            break;
+          default:
+            sprintf(datetimeStr, "%02d:%02d  %02d.%02d.  ", ns.sensTm.tm_hour, ns.sensTm.tm_min, ns.sensTm.tm_mday, ns.sensTm.tm_mon+1);
+        }
+    }
+
+    if(lastMin!=localTimeInfo.tm_min) {
+      lastMin=localTimeInfo.tm_min;
+      M5.Lcd.drawString(datetimeStr, 30, 0, GFXFF);
+    }
+}
+
 void draw_page() {
   char tmpstr[255];
   
@@ -1725,62 +1782,9 @@ void draw_page() {
       
       // readNightscout(cfg.url, cfg.token, &ns);
   
-      M5.Lcd.setFreeFont(FSSB12);
-      M5.Lcd.setTextSize(1);
-      M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-      // char dateStr[30];
-      // sprintf(dateStr, "%d.%d.%04d", sensTm.tm_mday, sensTm.tm_mon+1, sensTm.tm_year+1900);
-      // M5.Lcd.drawString(dateStr, 0, 48, GFXFF);
-      // char timeStr[30];
-      // sprintf(timeStr, "%02d:%02d:%02d", sensTm.tm_hour, sensTm.tm_min, sensTm.tm_sec);
-      // M5.Lcd.drawString(timeStr, 0, 72, GFXFF);
-      char dateStr[16];
-      char timeStr[16];
-      char datetimeStr[32];
-      struct tm timeinfo;
-      if(cfg.show_current_time) {
-        if(getLocalTime(&timeinfo)) {
-          // sprintf(datetimeStr, "%02d:%02d:%02d  %d.%d.  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, timeinfo.tm_mday, timeinfo.tm_mon+1);  
-          switch(cfg.time_format) {
-            case 1:
-              // sprintf(datetimeStr, "%02d:%02d  %d/%d  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mon+1, timeinfo.tm_mday);
-              strftime(timeStr, 15, "%I:%M%p", &timeinfo);
-              timeStr[strlen(timeStr)-1] = 0;
-              strcat(timeStr, " ");
-              break;
-            default:
-              // sprintf(datetimeStr, "%02d:%02d  %d.%d.  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mday, timeinfo.tm_mon+1);
-              strftime(timeStr, 15, "%H:%M ", &timeinfo);
-          }
-          switch(cfg.date_format) {
-            case 1:
-              // sprintf(datetimeStr, "%02d:%02d  %d/%d  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mon+1, timeinfo.tm_mday);
-              // timeinfo.tm_mday=25;
-              strftime(dateStr, 15, "%m/%d  ", &timeinfo);
-              break;
-            default:
-              // sprintf(datetimeStr, "%02d:%02d  %d.%d.  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mday, timeinfo.tm_mon+1);
-              // timeinfo.tm_mday=25;
-              strftime(dateStr, 15, "%d.%m.  ", &timeinfo);
-          }
-          strcpy(datetimeStr, timeStr);
-          strcat(datetimeStr, dateStr);
-        } else {
-          // strcpy(datetimeStr, "??:??:??");
-          strcpy(datetimeStr, "??:??");
-        }
-      } else {
-        // sprintf(datetimeStr, "%02d:%02d:%02d  %02d.%02d.  ", sensTm.tm_hour, sensTm.tm_min, sensTm.tm_sec, sensTm.tm_mday, sensTm.tm_mon+1);
-          switch(cfg.date_format) {
-            case 1:
-              sprintf(datetimeStr, "%02d:%02d  %02d/%02d.  ", ns.sensTm.tm_hour, ns.sensTm.tm_min, ns.sensTm.tm_mon+1, ns.sensTm.tm_mday);
-              break;
-            default:
-              sprintf(datetimeStr, "%02d:%02d  %02d.%02d.  ", ns.sensTm.tm_hour, ns.sensTm.tm_min, ns.sensTm.tm_mday, ns.sensTm.tm_mon+1);
-          }
-      }
-      M5.Lcd.drawString(datetimeStr, 0, 0, GFXFF);
+      show_current_time();
 
+      //TODO change position
       drawBatteryStatus(icon_xpos[2], icon_ypos[2]);
 
       if(err_log_ptr>0) {
@@ -1791,102 +1795,10 @@ void draw_page() {
           drawIcon(icon_xpos[0], icon_ypos[0], (uint8_t*)warning_icon16x16, TFT_LIGHTGREY);
       }
               
-      M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-      M5.Lcd.drawString(cfg.userName, 0, 24, GFXFF);
-      
-      if(cfg.show_COB_IOB) {
-        M5.Lcd.setFreeFont(FSSB12);
-        M5.Lcd.setTextSize(1);
-        // show small delta right from name
-        /*
-        M5.Lcd.setFreeFont(FSSB12);
-        M5.Lcd.setTextColor(WHITE, BLACK);
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.fillRect(130,24,69,23,TFT_BLACK);
-        M5.Lcd.drawString(ns.delta_display, 130, 24, GFXFF);
-        */
-        
-        M5.Lcd.fillRect(0,48,199,47,TFT_BLACK);
-        if(ns.iob>0)
-          M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-        else
-          M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-        // Serial.print("ns.iob_displayLine=\""); Serial.print(ns.iob_displayLine); Serial.println("\"");
-        strncpy(tmpstr, ns.iob_displayLine, 16);
-        if(strncmp(tmpstr, "IOB:", 4)==0) {
-          strcpy(tmpstr,"I");
-          strcat(tmpstr, &ns.iob_displayLine[3]);
-        }
-        M5.Lcd.drawString(tmpstr, 0, 48, GFXFF);
-        if(ns.cob>0)
-          M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-        else
-          M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-        // Serial.print("ns.cob_displayLine=\""); Serial.print(ns.cob_displayLine); Serial.println("\"");
-        strncpy(tmpstr, ns.cob_displayLine, 16);
-        if(strncmp(tmpstr, "COB:", 4)==0) {
-          strcpy(tmpstr,"C");
-          strcat(tmpstr, &ns.cob_displayLine[3]);
-        }
-        M5.Lcd.drawString(tmpstr, 0, 72, GFXFF);
 
-        // show BIG delta below the name
-        M5.Lcd.setFreeFont(FSSB24);
-        // strcpy(ns.delta_display, "+8.9");
-        if(ns.delta_mgdl>7)
-          M5.Lcd.setTextColor(TFT_WHITE, BLACK);
-        else
-          M5.Lcd.setTextColor(TFT_LIGHTGREY, BLACK);
-        M5.Lcd.drawString(ns.delta_display, 103, 48, GFXFF);
-        M5.Lcd.setFreeFont(FSSB12);
-
-      } else {
-        // show BIG delta below the name
-        M5.Lcd.setFreeFont(FSSB24);
-        M5.Lcd.setTextColor(TFT_LIGHTGREY, BLACK);
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.fillRect(0,48+10,199,47,TFT_BLACK);
-        M5.Lcd.drawString(ns.delta_display, 0, 48+10, GFXFF);
-        M5.Lcd.setFreeFont(FSSB12);
-      }
-
-      // calculate sensor time difference
-      int sensorDifSec=0;
-      if(!getLocalTime(&timeinfo)){
-        sensorDifSec=24*60*60; // too much
-      } else {
-        Serial.print("Local time: "); Serial.print(timeinfo.tm_hour); Serial.print(":"); Serial.print(timeinfo.tm_min); Serial.print(":"); Serial.print(timeinfo.tm_sec); Serial.print(" DST "); Serial.println(timeinfo.tm_isdst);
-        sensorDifSec=difftime(mktime(&timeinfo), ns.sensTime);
-      }
-      Serial.print("Sensor time difference = "); Serial.print(sensorDifSec); Serial.println(" sec");
-      unsigned int sensorDifMin = (sensorDifSec+30)/60;
-      uint16_t tdColor = TFT_LIGHTGREY;
-      if(sensorDifMin>5) {
-        tdColor = TFT_WHITE;
-        if(sensorDifMin>15) {
-          tdColor = TFT_RED;
-        }
-      }
-
-      M5.Lcd.fillRoundRect(200,0,120,90,15,tdColor);
-      M5.Lcd.setTextSize(1);
-      M5.Lcd.setFreeFont(FSSB24);
-      M5.Lcd.setTextDatum(MC_DATUM);
-      M5.Lcd.setTextColor(TFT_BLACK, tdColor);
-      if(sensorDifMin>99) {
-        M5.Lcd.drawString("Err", 260, 32, GFXFF);
-      } else {
-        M5.Lcd.drawNumber(sensorDifMin, 260, 32, GFXFF);
-      }
-      M5.Lcd.setTextSize(1);
-      M5.Lcd.setFreeFont(FSSB12);
-      M5.Lcd.setTextDatum(MC_DATUM);
-      M5.Lcd.setTextColor(TFT_BLACK, tdColor);
-      M5.Lcd.drawString("min", 260, 70, GFXFF);
-      
-      uint16_t glColor = TFT_GREEN;
+      uint16_t glColor = TFT_DARKGREEN;
       if(ns.sensSgv<cfg.yellow_low || ns.sensSgv>cfg.yellow_high) {
-        glColor=TFT_YELLOW; // warning is YELLOW
+        glColor=TFT_ORANGE; // warning is YELLOW
       }
       if(ns.sensSgv<cfg.red_low || ns.sensSgv>cfg.red_high) {
         glColor=TFT_RED; // alert is RED
@@ -1946,7 +1858,7 @@ void draw_page() {
     case 1: {
       // readNightscout(cfg.url, cfg.token, &ns);
       
-      uint16_t glColor = TFT_GREEN;
+      uint16_t glColor = TFT_DARKGREEN;
       if(ns.sensSgv<cfg.yellow_low || ns.sensSgv>cfg.yellow_high) {
         glColor=TFT_YELLOW; // warning is YELLOW
       }
@@ -2027,7 +1939,7 @@ void draw_page() {
    
     case 2: {
       // calculate SGV color
-      uint16_t glColor = TFT_GREEN;
+      uint16_t glColor = TFT_DARKGREEN;
       if(ns.sensSgv<cfg.yellow_low || ns.sensSgv>cfg.yellow_high) {
         glColor=TFT_YELLOW; // warning is YELLOW
       }
@@ -2695,46 +2607,7 @@ void loop() {
         }
       }
       if((dispPage==0) && cfg.show_current_time) {
-        // update current time on display
-        M5.Lcd.setFreeFont(FSSB12);
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-        if(getLocalTime(&localTimeInfo)) {
-            char timeStr[16];
-            char dateStr[16];
-            switch(cfg.time_format) {
-              case 1:
-                // sprintf(datetimeStr, "%02d:%02d  %d/%d  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mon+1, timeinfo.tm_mday);
-                strftime(timeStr, 15, "%I:%M%p", &localTimeInfo);
-                timeStr[strlen(timeStr)-1] = 0;
-                strcat(timeStr, " ");
-                break;
-              default:
-                // sprintf(datetimeStr, "%02d:%02d  %d.%d.  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mday, timeinfo.tm_mon+1);
-                strftime(timeStr, 15, "%H:%M ", &localTimeInfo);
-            }
-            switch(cfg.date_format) {
-              case 1:
-                // sprintf(datetimeStr, "%02d:%02d  %d/%d  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mon+1, timeinfo.tm_mday);
-               // localTimeInfo.tm_mday=25;
-               strftime(dateStr, 15, "%m/%d  ", &localTimeInfo);
-                break;
-              default:
-                // localTimeInfo.tm_mday=25;
-                // sprintf(datetimeStr, "%02d:%02d  %d.%d.  ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_mday, timeinfo.tm_mon+1);
-                strftime(dateStr, 15, "%d.%m.  ", &localTimeInfo);
-            }
-            strcpy(localTimeStr, timeStr);
-            strcat(localTimeStr, dateStr);
-        } else {
-          strcpy(localTimeStr, "??:??");
-          lastMin = 61;
-        }
-        if(lastMin!=localTimeInfo.tm_min) {
-          lastSec=localTimeInfo.tm_sec;
-          lastMin=localTimeInfo.tm_min;
-          M5.Lcd.drawString(localTimeStr, 0, 0, GFXFF);
-        }
+        show_current_time();
       }
       if(dispPage==2) {
         // update analog clock
