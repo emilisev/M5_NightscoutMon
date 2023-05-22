@@ -579,7 +579,7 @@ void buttons_test() {
       // snoozing just recently - will multiply snooze time
       // Serial.printf("lastButton < 2s \r\n");
       snoozeMult++;
-      if(snoozeMult>4)
+      if(snoozeMult>8)
         snoozeMult = 0;
     } else {
       // Serial.printf("lastButton > 2s,  MULT = 1\r\n");
@@ -1712,7 +1712,7 @@ void drawSegment(int x, int y, int r1, int r2, float a, int col)
 void show_current_time() {
   M5.Lcd.setFreeFont(FSSB24);
   M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  M5.Lcd.setTextColor(TFT_DARKGREY, TFT_BLACK);
   char dateStr[16];
   char timeStr[16];
   char datetimeStr[32];
@@ -1803,6 +1803,20 @@ void draw_page() {
       if(ns.sensSgv<cfg.red_low || ns.sensSgv>cfg.red_high) {
         glColor=TFT_RED; // alert is RED
       }
+      // calculate sensor time difference
+      int sensorDifSec=0;
+      struct tm timeinfo;
+      if(!getLocalTime(&timeinfo)){
+        sensorDifSec=24*60*60; // too much
+      } else {
+        Serial.print("Local time: "); Serial.print(timeinfo.tm_hour); Serial.print(":"); Serial.print(timeinfo.tm_min); Serial.print(":"); Serial.print(timeinfo.tm_sec); Serial.print(" DST "); Serial.println(timeinfo.tm_isdst);
+        sensorDifSec=difftime(mktime(&timeinfo), ns.sensTime);
+      }
+      Serial.print("Sensor time difference = "); Serial.print(sensorDifSec); Serial.println(" sec");
+      unsigned int sensorDifMin = (sensorDifSec+30)/60;
+      if(sensorDifMin>=cfg.snd_no_readings) {
+        glColor=TFT_ORANGE; // warning is YELLOW
+      }
     
       sprintf(tmpstr, "Glyk: %4.1f %s", ns.sensSgv, ns.sensDir);
       Serial.println(tmpstr);
@@ -1829,6 +1843,9 @@ void draw_page() {
         M5.Lcd.setFreeFont(FSSB24);
         M5.Lcd.drawString(sensSgvStr, 0, 120, GFXFF);
       }
+      if(sensorDifMin>=cfg.snd_no_readings) {
+        M5.Lcd.fillRect(0, 155, 200, 10, TFT_ORANGE);
+      }
       int tw=M5.Lcd.textWidth(sensSgvStr);
       // int th=M5.Lcd.fontHeight(GFXFF);
       // Serial.print("textWidth="); Serial.println(tw);
@@ -1849,7 +1866,9 @@ void draw_page() {
       M5.Lcd.drawLine(160, 0, 160, 240, TFT_LIGHTGREY);
       */
 
-      drawMiniGraph(&ns);
+      if(!(sensorDifMin>=cfg.snd_no_readings)) {
+        drawMiniGraph(&ns);
+      }
       handleAlarmsInfoLine(&ns);
       drawLogWarningIcon();
     }
